@@ -1,12 +1,27 @@
+from storm_database import StormDatabase
+
 class HailSQL:
     def __init__(self, db):
+        """
+        Initialize HailSQL query wrapper.
+        
+        Args:
+            db (StormDatabase): Database connection object to use for queries.
+        """
         self.db = db
         self.table = "hail"
     
     def count_hail_above_size(self, min_size, start_date, end_date):
         """
-        Return the number of hail events with [HAIL SIZE (INCHES)] >= min_size,
-        within the given date range (DATE as 'MM/DD/YY' or 'MM/DD/YYYY').
+        Count hail events with size >= specified inches in date range.
+        
+        Args:
+            min_size (float): Minimum hail size in inches.
+            start_date (str): Start date in YYYY-MM-DD format.
+            end_date (str): End date in YYYY-MM-DD format.
+            
+        Returns:
+            int: Number of matching hail events.
         """
         sql = f"""
         SELECT COUNT(*)
@@ -20,10 +35,13 @@ class HailSQL:
 
     def monthly_breakdown(self):
         """
-        Group hail events by month (assuming DATE is 'MM/DD/YY' or 'MM/DD/YYYY').
+        Group hail events by month across all years.
+        
+        Returns:
+            list: List of (month, count) tuples, where month is '01'-'12'.
         """
         sql = f"""
-        SELECT substr(DATE, 1, 2) AS Month, COUNT(*)
+        SELECT strftime('%m', DATE) AS Month, COUNT(*)
         FROM {self.table}
         GROUP BY Month
         ORDER BY Month
@@ -32,12 +50,13 @@ class HailSQL:
 
     def yearly_breakdown(self):
         """
-        Group hail events by year (assuming DATE is 'MM/DD/YYYY' or 'MM/DD/YY').
-        If all are 'MM/DD/YY' with leading zeros, substring( DATE, 7, 2 ) might be used for the year.
-        Or if 'MM/DD/YYYY', substring( DATE, 7, 4 ) for the year.
+        Group hail events by year across entire dataset.
+        
+        Returns:
+            list: List of (year, count) tuples, where year is like '1950'.
         """
         sql = f"""
-        SELECT substr(DATE, 7, 4) AS Year, COUNT(*)
+        SELECT strftime('%Y', DATE) AS Year, COUNT(*)
         FROM {self.table}
         GROUP BY Year
         ORDER BY Year
@@ -46,7 +65,15 @@ class HailSQL:
 
     def top_property_damage(self, start_date, end_date, limit=5):
         """
-        Return the top N hail events by property damage in the date range.
+        Get hail events with highest property damage within date range.
+        
+        Args:
+            start_date (str): Start date in YYYY-MM-DD format.
+            end_date (str): End date in YYYY-MM-DD format.
+            limit (int): Maximum number of results to return. Defaults to 5.
+            
+        Returns:
+            list: List of hail event records sorted by damage amount.
         """
         sql = f"""
         SELECT *
@@ -60,12 +87,19 @@ class HailSQL:
 
     def percent_of_hail_in_time_range(self, start_time, end_time):
         """
-        Return the % of hail events whose BEGIN_TIME is between start_time and end_time.
+        Calculate percentage of hail events occurring between specified times.
+        
+        Args:
+            start_time (str): Start time in HHMM format (e.g., '1400').
+            end_time (str): End time in HHMM format (e.g., '1600').
+            
+        Returns:
+            float: Percentage of events occurring in time range.
         """
         total_sql = f"SELECT COUNT(*) FROM {self.table}"
         total = self.db.execute_query(total_sql)[0][0]
         if total == 0:
-            return 0
+            return 0.0
 
         range_sql = f"""
         SELECT COUNT(*)
